@@ -30,9 +30,10 @@ export default function PlayScreen() {
   const s = useSettings();
   const info = GAME_LIST.find((g) => g.id === gameId)!;
 
-  // Bagha Chheli + Chowka Bara: start upright; rotate only if the user turns the phone.
-  // Mancala / Dash: lock landscape for the board layout.
-  const freeRotate = gameId === 'bagha_chheli' || gameId === 'chowka_bara';
+  // Bagha / Chowka / Dash: start upright; rotate only if the user turns the phone.
+  // Mancala stays landscape-locked for the board layout.
+  const freeRotate =
+    gameId === 'bagha_chheli' || gameId === 'chowka_bara' || gameId === 'dash_guti';
 
   useFocusEffect(
     useCallback(() => {
@@ -40,8 +41,15 @@ export default function PlayScreen() {
       let cancelled = false;
       const timer = setTimeout(() => {
         if (cancelled) return;
-        if (freeRotate) void unlockOrientation();
-        else void landscape();
+        if (freeRotate) {
+          // Start upright, then unlock so the user can still rotate.
+          void (async () => {
+            await portraitUp();
+            if (!cancelled) await unlockOrientation();
+          })();
+        } else {
+          void landscape();
+        }
       }, 400);
       return () => {
         cancelled = true;
