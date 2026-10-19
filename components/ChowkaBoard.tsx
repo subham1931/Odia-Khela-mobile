@@ -1,5 +1,14 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Lock } from 'lucide-react-native';
 import Svg, { Circle, Ellipse, Line, Path } from 'react-native-svg';
@@ -15,6 +24,11 @@ import {
   START_CELLS,
 } from '@odiakhela/engine/chowka';
 import { colors } from '@/constants/theme';
+
+/** Per-shell tumble length (web uses 0.6s). Hook waits a touch longer for stagger. */
+export const ROLL_MS = 620;
+const STAGGER_MS = 18;
+const ROLL_EASE = Easing.bezier(0.16, 1, 0.3, 1);
 
 export const SEAT_COLOURS: Record<Seat, { fill: string; rim: string; soft: string }> = {
   0: { fill: '#d6455d', rim: '#7a1626', soft: 'rgba(214,69,93,0.22)' },
@@ -255,7 +269,7 @@ export function ChowkaBoard({
                       top: `${y}%`,
                       marginLeft: -pawnSize / 2,
                       marginTop: -pawnSize / 2,
-                      transform: [{ scale: doomed ? 1.2 : 1 }],
+                      transform: [{ scale: doomed ? 1.15 : 1 }],
                     },
                   ]}
                 >
@@ -295,31 +309,103 @@ export function Shells({
 }) {
   const faces = shells ?? [true, false, true, false];
   const name = value === 4 ? 'Chamma' : value === 8 ? 'Ashta' : null;
+  const showValue = value !== null && !rolling;
   return (
     <View style={styles.shellsWrap}>
       <View style={styles.shellsRow}>
         {faces.map((up, k) => (
-          <View
+          <RollingShell
             key={k}
-            style={[
-              styles.shellSlot,
-              { transform: [{ rotate: `${rolling ? 0 : k * 9 - 13}deg` }, { translateY: rolling ? -4 : 0 }] },
-            ]}
-          >
-            <Cowrie up={rolling ? k % 2 === 0 : up} dim={!shells && !rolling} />
-          </View>
+            index={k}
+            rolling={rolling}
+            up={rolling ? k % 2 === 0 : up}
+            dim={!shells && !rolling}
+          />
         ))}
       </View>
       <View style={styles.valueSlot}>
-        {value !== null && !rolling ? (
-          <View style={[styles.valuePill, name ? styles.valueBonus : styles.valueNormal]}>
-            <Text style={[styles.valueText, name ? styles.valueBonusText : null]}>
-              {name ? `${name} – ${value}, throw again!` : `Move ${value}`}
-            </Text>
-          </View>
+        {showValue ? (
+          <ValuePill
+            text={name ? `${name} – ${value}, throw again!` : `Move ${value}`}
+            bonus={!!name}
+          />
         ) : null}
       </View>
     </View>
+  );
+}
+
+function ValuePill({ text, bonus }: { text: string; bonus: boolean }) {
+  const opacity = useSharedValue(0);
+  useEffect(() => {
+    opacity.value = 0;
+    opacity.value = withTiming(1, { duration: 220, easing: ROLL_EASE });
+  }, [text, opacity]);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: interpolate(opacity.value, [0, 1], [0.88, 1]) }],
+  }));
+
+  return (
+    <Animated.View style={[styles.valuePill, bonus ? styles.valueBonus : styles.valueNormal, style]}>
+      <Text style={[styles.valueText, bonus ? styles.valueBonusText : null]}>{text}</Text>
+    </Animated.View>
+  );
+}
+
+/**
+ * Web keyframes on one progress (UI thread): rotate + bounce + light scale.
+ * Tiny stagger only — still one animation per shell, so it stays smooth.
+ */
+function RollingShell({
+  index,
+  rolling,
+  up,
+  dim,
+}: {
+  index: number;
+  rolling: boolean;
+  up: boolean;
+  dim: boolean;
+}) {
+  const restDeg = index * 9 - 13;
+  const midDeg = 200 + index * 60;
+  const endDeg = 360 + index * 90;
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    cancelAnimation(progress);
+    if (rolling) {
+      progress.value = 0;
+      progress.value = withDelay(
+        index * STAGGER_MS,
+        withTiming(1, { duration: ROLL_MS, easing: ROLL_EASE }),
+      );
+      return;
+    }
+    // Snap to rest — don't rewind mid-spin.
+    progress.value = 0;
+  }, [rolling, index, progress]);
+
+  const style = useAnimatedStyle(() => {
+    const p = progress.value;
+    if (p <= 0.001) {
+      return { transform: [{ translateY: 0 }, { rotate: `${restDeg}deg` }, { scale: 1 }] };
+    }
+    return {
+      transform: [
+        { translateY: interpolate(p, [0, 0.45, 1], [0, -16, 0]) },
+        { rotate: `${interpolate(p, [0, 0.45, 1], [0, midDeg, endDeg])}deg` },
+        { scale: interpolate(p, [0, 0.45, 1], [1, 1.1, 1]) },
+      ],
+    };
+  });
+
+  return (
+    <Animated.View style={[styles.shellSlot, style]}>
+      <Cowrie up={up} dim={dim} />
+    </Animated.View>
   );
 }
 
@@ -459,10 +545,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shellsWrap: { alignItems: 'center', gap: 8 },
-  shellsRow: { flexDirection: 'row', gap: 8 },
+  shellsWrap: { alignItems: 'center', gap: 4, height: 76, justifyContent: 'center' },
+  shellsRow: { flexDirection: 'row', gap: 8, height: 48, alignItems: 'center', overflow: 'visible' },
   shellSlot: { width: 32, height: 40 },
-  valueSlot: { minHeight: 28, justifyContent: 'center' },
+  valueSlot: { height: 28, justifyContent: 'center', alignItems: 'center' },
   valuePill: {
     borderRadius: 999,
     paddingHorizontal: 12,

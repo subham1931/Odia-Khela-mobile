@@ -30,7 +30,8 @@ export type ChowkaNews =
   | { kind: 'no_move'; mover: Seat; value: number; gate: boolean };
 
 const STEP_MS: Record<AnimationSpeed, number> = { slow: 320, normal: 200, fast: 110 };
-const SHELL_ROLL_MS = 650;
+/** ROLL_MS (620) + last-shell stagger (3×18) so audio/visual finish together. */
+export const SHELL_ROLL_MS = 680;
 const HOLD_MS: Record<AnimationSpeed, number> = { slow: 2400, normal: 1800, fast: 1100 };
 const AI_PAUSE_MS = 450;
 
@@ -40,12 +41,14 @@ const AI_PAUSE_MS = 450;
  * Pawns walk square by square; captures pause with an explanation; 4, 8 and captures
  * give another throw.
  */
+export type ChowkaSoundEvent = 'throw' | 'land' | 'step' | 'capture' | 'home';
+
 export function useChowkaGame(
   options: ChowkaOptions,
   {
     speed = 'normal',
     onEvent,
-  }: { speed?: AnimationSpeed; onEvent?: (kind: 'step' | 'throw' | 'capture' | 'home') => void } = {},
+  }: { speed?: AnimationSpeed; onEvent?: (kind: ChowkaSoundEvent) => void } = {},
 ) {
   const [state, setState] = useState<ChowkaState>(() => createChowkaState(options.players));
   /** Pawn positions as drawn (they lag the engine while a pawn is walking). */
@@ -89,10 +92,13 @@ export function useChowkaGame(
     setRolling(true);
     setNews(null);
     const { shells: faces, value: v } = throwShells();
+    // Throw/roll starts: screen plays the cowrie tumble.
     onEventRef.current?.('throw');
     later(SHELL_ROLL_MS, () => {
       setRolling(false);
       setShells(faces);
+      // Shells settle on the table.
+      onEventRef.current?.('land');
       const next = applyThrow(s, v);
       if (next.phase === 'move') {
         settle(next);
@@ -179,8 +185,12 @@ export function useChowkaGame(
 
   const moves = useMemo(() => (humanTurn && !busy ? legalChowkaMoves(state) : []), [state, humanTurn, busy]);
 
+  /** Prefer the exact pawn index so waiting pawns (all at OFF) stay distinct. */
   const moveForPawn = useCallback(
-    (pawn: number) => moves.find((m) => m.from === stateRef.current.pawns[stateRef.current.turn][pawn]) ?? null,
+    (pawn: number) =>
+      moves.find((m) => m.pawn === pawn) ??
+      moves.find((m) => m.from === stateRef.current.pawns[stateRef.current.turn][pawn]) ??
+      null,
     [moves],
   );
 

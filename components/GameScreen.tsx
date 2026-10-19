@@ -158,6 +158,8 @@ export function GameScreen({ options, onExit }: { options: GameOptions; onExit: 
       <GameOptionsSheet
         visible={optionsOpen}
         onClose={() => setOptionsOpen(false)}
+        showCounters
+        showPathHints
         showRotate={!game.isVsAI}
         canSkip={g.isAnimating}
         onSkip={g.skipAnimation}

@@ -122,7 +122,7 @@ function synthesizeClack(freq: number, gain: number, decay: number, seed = 1): U
 }
 
 function sfxDir(): Directory {
-  const dir = new Directory(Paths.cache, 'odiakhela-sfx-v2');
+  const dir = new Directory(Paths.cache, 'odiakhela-sfx-v3');
   if (!dir.exists) dir.create();
   return dir;
 }
@@ -155,14 +155,28 @@ class PlayerPool {
     this.i += 1;
     try {
       p.volume = volume;
-      // Restart from the beginning so overlapping drops work.
-      void p.seekTo(0).then(() => {
-        try {
-          p.play();
-        } catch {
-          /* ignore */
-        }
-      });
+      try {
+        p.pause();
+      } catch {
+        /* ignore */
+      }
+      // Restart from the beginning so overlapping drops / shell rattles work.
+      void p
+        .seekTo(0)
+        .then(() => {
+          try {
+            p.play();
+          } catch {
+            /* ignore */
+          }
+        })
+        .catch(() => {
+          try {
+            p.play();
+          } catch {
+            /* ignore */
+          }
+        });
     } catch {
       try {
         p.play();
@@ -213,7 +227,8 @@ async function ensureNative(): Promise<Banks | null> {
       const dropUri = writeClack('drop', 900, 0.22, 0.07);
       // Store drop: deeper thud so storing is distinct while sowing
       const storeUri = writeClack('store', 520, 0.26, 0.1);
-      const scoopUris = [0, 1, 2, 3].map((i) => writeClack(`scoop${i}`, 520 + i * 55, 0.14, 0.05));
+      // Scoop / shell rattle variants (web: 520 + random*200)
+      const scoopUris = [0, 1, 2, 3, 4, 5].map((i) => writeClack(`scoop${i}`, 500 + i * 45, 0.16, 0.05));
       const captureUris = [0, 1, 2, 3, 4].map((i) => writeClack(`cap${i}`, 1100 - i * 45, 0.2, 0.09));
       const turnUri = writeClack('turn', 420, 0.12, 0.12);
       const winUris = [0, 1, 2, 3].map((i) => writeClack(`win${i}`, 660 + i * 180, 0.24, 0.25));
@@ -221,7 +236,8 @@ async function ensureNative(): Promise<Banks | null> {
       banks = {
         drop: new PlayerPool(dropUri, 8, 0.85),
         store: new PlayerPool(storeUri, 4, 0.95),
-        scoop: scoopUris.map((u) => new PlayerPool(u, 2, 0.7)),
+        // Larger pool so Chowka shell rolls can overlap without cutting off.
+        scoop: scoopUris.map((u) => new PlayerPool(u, 3, 0.75)),
         capture: captureUris.map((u) => new PlayerPool(u, 2, 0.9)),
         turn: new PlayerPool(turnUri, 2, 0.65),
         win: winUris.map((u) => new PlayerPool(u, 1, 1)),
@@ -272,13 +288,32 @@ export const sounds = {
     if (clack(560, 0.2, 0, 0.1)) return;
     nativeClack('store');
   },
-  /** Scooping counters out of a pit. */
+  /** Scooping counters out of a pit (also the short web throw clatter). */
   scoop: (count: number) => {
     const n = Math.min(6, Math.max(2, count));
     for (let i = 0; i < n; i++) {
       if (clack(520 + Math.random() * 200, 0.1, i * 0.022, 0.05)) continue;
       nativeClack('scoop', { index: i, delay: i * 0.022 });
     }
+  },
+  /**
+   * Cowrie shells tumbling (Chowka throw / roll).
+   * Opening clatter + a couple of soft mid ticks — rich enough, not heavy on the JS thread.
+   */
+  roll: () => {
+    for (let i = 0; i < 4; i++) {
+      if (clack(520 + Math.random() * 180, 0.11, i * 0.028, 0.05)) continue;
+      nativeClack('scoop', { index: i, delay: i * 0.028 });
+    }
+    ([0.22, 0.4] as const).forEach((d, i) => {
+      if (clack(500 + Math.random() * 160, 0.07, d, 0.04)) return;
+      nativeClack('scoop', { index: (i + 2) % 6, delay: d });
+    });
+  },
+  /** Soft settle when shells finish rolling. */
+  land: () => {
+    if (clack(620, 0.12, 0, 0.09)) return;
+    nativeClack('drop');
   },
   /** Capture burst. */
   capture: (count: number) => {

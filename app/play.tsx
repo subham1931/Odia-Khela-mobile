@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { seatsFor } from '@odiakhela/engine/chowka';
 import type { GameOptions, GameVariant } from '@odiakhela/engine/types';
 import { VARIANTS } from '@odiakhela/engine/variants';
 import { ChowkaScreen } from '@/components/ChowkaScreen';
@@ -29,9 +30,9 @@ export default function PlayScreen() {
   const s = useSettings();
   const info = GAME_LIST.find((g) => g.id === gameId)!;
 
-  // Bagha Chheli: start upright and rotate only if the user turns the phone.
-  // Other games: lock landscape for the board layout.
-  const freeRotate = gameId === 'bagha_chheli';
+  // Bagha Chheli + Chowka Bara: start upright; rotate only if the user turns the phone.
+  // Mancala / Dash: lock landscape for the board layout.
+  const freeRotate = gameId === 'bagha_chheli' || gameId === 'chowka_bara';
 
   useFocusEffect(
     useCallback(() => {
@@ -81,9 +82,11 @@ export default function PlayScreen() {
   const chowkaOptions = useMemo<ChowkaOptions | null>(() => {
     if (gameId !== 'chowka_bara') return null;
     const players = s.chowkaPlayers;
+    const seats = seatsFor(players);
     return {
       players,
-      humanSeats: s.mode === 'ai' ? [0] : Array.from({ length: players }, (_, i) => i as 0 | 1 | 2 | 3),
+      // Pass & play: every seated colour is human (2p uses opposite seats 0+2, not 0+1).
+      humanSeats: s.mode === 'ai' ? [0] : seats,
       aiDifficulty: s.aiDifficulty,
     };
   }, [gameId, s.chowkaPlayers, s.mode, s.aiDifficulty]);

@@ -165,13 +165,7 @@ export function DashScreen({ options, onExit }: { options: DashOptions; onExit: 
 
       <DashExplainer capture={g.lastCapture} name={name} />
 
-      <GameOptionsSheet
-        visible={optionsOpen}
-        onClose={() => setOptionsOpen(false)}
-        showRotate={false}
-        canSkip={false}
-        onSkip={() => {}}
-      />
+      <GameOptionsSheet visible={optionsOpen} onClose={() => setOptionsOpen(false)} />
 
       {state.winner !== null && (
         <View style={styles.modalBackdrop}>

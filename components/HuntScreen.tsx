@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, RotateCcw, Settings2, Undo2, Volume2, VolumeX, X } from 'lucide-react-native';
+import { ChevronLeft, RotateCcw, Settings2, Undo2, Volume2, VolumeX } from 'lucide-react-native';
 import { GOATS, type HuntMove, type HuntState, MAX_PLIES, type Side, TIGERS_TO_WIN } from '@odiakhela/engine/hunt';
 import { colors } from '@/constants/theme';
 import { type HuntOptions, useHuntGame } from '@/hooks/useHuntGame';
 import { sounds, vibrate } from '@/lib/feedback';
-import { type AnimationSpeed, useSettings } from '@/store/settings';
+import { useSettings } from '@/store/settings';
+import { GameOptionsSheet } from './GameOptionsSheet';
 import { HuntBoard, Token } from './HuntBoard';
 import { JuteBackground } from './JuteBackground';
-import { Segmented } from './Segmented';
 
 const SIDE_NAME: Record<Side, string> = { goat: 'Goats', tiger: 'Tigers' };
 
@@ -174,39 +174,7 @@ export function HuntScreen({ options, onExit }: HuntScreenProps) {
         </Pressable>
       </View>
 
-      {optionsOpen ? (
-        <View style={styles.optionsRoot} pointerEvents="box-none">
-          <Pressable style={styles.optionsBackdrop} onPress={() => setOptionsOpen(false)} />
-          <View
-            style={[
-              styles.optionsCard,
-              {
-                paddingTop: Math.max(insets.top, 12),
-                paddingBottom: Math.max(insets.bottom, 12),
-                paddingRight: Math.max(insets.right, 14),
-              },
-            ]}
-          >
-            <View style={styles.optionsHeader}>
-              <Text style={styles.optionsTitle}>Match options</Text>
-              <Pressable
-                onPress={() => setOptionsOpen(false)}
-                style={styles.iconBtn}
-                accessibilityLabel="Close options"
-                hitSlop={8}
-              >
-                <X color={colors.amber100} size={16} />
-              </Pressable>
-            </View>
-            <Text style={styles.fieldLabel}>Animation speed</Text>
-            <Segmented
-              value={settings.speed}
-              options={['slow', 'normal', 'fast'] as const satisfies readonly AnimationSpeed[]}
-              onChange={(speed) => settings.set({ speed })}
-            />
-          </View>
-        </View>
-      ) : null}
+      <GameOptionsSheet visible={optionsOpen} onClose={() => setOptionsOpen(false)} />
 
       {state.winner ? (
         <View style={styles.modalBackdrop}>
@@ -432,44 +400,6 @@ const styles = StyleSheet.create({
   },
   ghostDisabled: { opacity: 0.3 },
   ghostText: { color: colors.amber100, fontSize: 13, fontWeight: '600' },
-  optionsRoot: {
-    ...StyleSheet.absoluteFill,
-    zIndex: 30,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  optionsBackdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: colors.overlay,
-  },
-  optionsCard: {
-    width: 280,
-    maxWidth: '85%',
-    height: '100%',
-    backgroundColor: colors.wood900,
-    borderLeftWidth: 1,
-    borderLeftColor: colors.brassDim,
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  optionsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  optionsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.amber50,
-    fontFamily: 'CormorantGaramond_600SemiBold',
-  },
-  fieldLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: colors.textMuted,
-  },
   modalBackdrop: {
     ...StyleSheet.absoluteFill,
     backgroundColor: colors.overlay,

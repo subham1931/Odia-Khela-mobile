@@ -19,15 +19,22 @@ const CLOSE_MS = 220;
 export function GameOptionsSheet({
   visible,
   onClose,
-  showRotate,
-  canSkip,
+  showCounters = false,
+  showPathHints = false,
+  showRotate = false,
+  canSkip = false,
   onSkip,
 }: {
   visible: boolean;
   onClose: () => void;
-  showRotate: boolean;
-  canSkip: boolean;
-  onSkip: () => void;
+  /** Mancala: cowrie / tamarind / pebble counters. */
+  showCounters?: boolean;
+  /** Mancala: projected sow path. */
+  showPathHints?: boolean;
+  /** Mancala pass-and-play: flip board for player 2. */
+  showRotate?: boolean;
+  canSkip?: boolean;
+  onSkip?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const s = useSettings();
@@ -78,15 +85,6 @@ export function GameOptionsSheet({
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>Counters</Text>
-          <Segmented
-            value={s.seedStyle}
-            options={['cowrie', 'tamarind', 'pebble'] as SeedStyle[]}
-            onChange={(seedStyle) => s.set({ seedStyle })}
-          />
-        </View>
-
-        <View style={styles.field}>
           <Text style={styles.label}>Speed</Text>
           <Segmented
             value={s.speed}
@@ -95,31 +93,48 @@ export function GameOptionsSheet({
           />
         </View>
 
-        <Toggle
-          label="Path hints"
-          on={s.showProjection}
-          onChange={(showProjection) => s.set({ showProjection })}
-        />
+        {showCounters ? (
+          <View style={styles.field}>
+            <Text style={styles.label}>Counters</Text>
+            <Segmented
+              value={s.seedStyle}
+              options={['cowrie', 'tamarind', 'pebble'] as SeedStyle[]}
+              onChange={(seedStyle) => s.set({ seedStyle })}
+            />
+          </View>
+        ) : null}
+
+        {showPathHints ? (
+          <Toggle
+            label="Path hints"
+            on={s.showProjection}
+            onChange={(showProjection) => s.set({ showProjection })}
+          />
+        ) : null}
+
         <Toggle label="Haptics" on={s.haptics} onChange={(haptics) => s.set({ haptics })} />
-        {showRotate && (
+
+        {showRotate ? (
           <Toggle
             label="Rotate for P2"
             on={s.rotateForPlayer2}
             onChange={(rotateForPlayer2) => s.set({ rotateForPlayer2 })}
           />
-        )}
+        ) : null}
 
-        <Pressable
-          onPress={() => {
-            onSkip();
-            onClose();
-          }}
-          disabled={!canSkip}
-          style={[styles.skipBtn, !canSkip && styles.skipDisabled]}
-        >
-          <FastForward color={canSkip ? colors.wood950 : colors.textFaint} size={16} />
-          <Text style={[styles.skipText, !canSkip && { color: colors.textFaint }]}>Skip animation</Text>
-        </Pressable>
+        {onSkip ? (
+          <Pressable
+            onPress={() => {
+              onSkip();
+              onClose();
+            }}
+            disabled={!canSkip}
+            style={[styles.skipBtn, !canSkip && styles.skipDisabled]}
+          >
+            <FastForward color={canSkip ? colors.wood950 : colors.textFaint} size={16} />
+            <Text style={[styles.skipText, !canSkip && { color: colors.textFaint }]}>Skip animation</Text>
+          </Pressable>
+        ) : null}
       </Animated.View>
     </View>
   );
