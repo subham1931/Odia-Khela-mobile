@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, RotateCcw, Settings2, Undo2, Volume2, VolumeX } from 'lucide-react-native';
+import { Check, ChevronLeft, RotateCcw, Settings2, Sparkles, Undo2, Volume2, VolumeX } from 'lucide-react-native';
 import { GOATS, type HuntMove, type HuntState, MAX_PLIES, type Side, TIGERS_TO_WIN } from '@odiakhela/engine/hunt';
 import { colors } from '@/constants/theme';
 import { type HuntOptions, useHuntGame } from '@/hooks/useHuntGame';
@@ -24,16 +24,22 @@ export function HuntScreen({ options, onExit }: HuntScreenProps) {
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [explained, setExplained] = useState<{
+    move: Extract<HuntMove, { kind: 'jump' }>;
+    captured: number;
+  } | null>(null);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
-  const onMove = useCallback((m: HuntMove, _next: HuntState) => {
+  const onMove = useCallback((m: HuntMove, next: HuntState) => {
     const { sound, haptics } = settingsRef.current;
     if (m.kind === 'jump') {
+      setExplained({ move: m, captured: next.captured });
       if (sound) sounds.capture(4);
       if (haptics) void vibrate([30, 40, 60]);
-    } else if (sound) {
-      sounds.drop();
+    } else {
+      setExplained(null);
+      if (sound) sounds.drop();
     }
   }, []);
 
@@ -49,6 +55,20 @@ export function HuntScreen({ options, onExit }: HuntScreenProps) {
     if (settingsRef.current.sound) sounds.win();
     if (settingsRef.current.haptics) void vibrate([40, 60, 80]);
   }, [state.winner, vsAI, options.humanSide]);
+
+  const status = g.capture
+    ? `Tiger jumps! Goat ${state.captured + 1} of ${TIGERS_TO_WIN} taken`
+    : g.aiThinking
+      ? 'Machine is thinking…'
+      : state.winner
+        ? ''
+        : g.isHumanTurn
+          ? state.turn === 'goat'
+            ? state.goatsInHand > 0
+              ? `${vsAI ? 'Your move' : 'Goats'} – place a goat (${state.goatsInHand} left)`
+              : `${vsAI ? 'Your move' : 'Goats'} – tap a goat, then a glowing point`
+            : `${vsAI ? 'Your move' : 'Tigers'} – tap a tiger, then a glowing point`
+          : `${name(state.turn)} to move`;
 
   const board = (
     <HuntBoard
@@ -109,6 +129,14 @@ export function HuntScreen({ options, onExit }: HuntScreenProps) {
         </View>
       </View>
 
+      {status ? (
+        <Text style={[styles.statusLine, g.capture && styles.statusCapture]} numberOfLines={1}>
+          {status}
+        </Text>
+      ) : (
+        <View style={styles.statusSpacer} />
+      )}
+
       {landscape ? (
         <View style={styles.landscapeBody}>
           <SidePanel
@@ -146,6 +174,8 @@ export function HuntScreen({ options, onExit }: HuntScreenProps) {
           <View style={styles.boardSlot}>{board}</View>
         </>
       )}
+
+      <HuntExplainer explained={explained} compact={!landscape} />
 
       <View style={styles.toolbar}>
         <Pressable
@@ -216,6 +246,60 @@ export function HuntScreen({ options, onExit }: HuntScreenProps) {
           </View>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+function HuntExplainer({
+  explained,
+  compact = false,
+}: {
+  explained: { move: Extract<HuntMove, { kind: 'jump' }>; captured: number } | null;
+  compact?: boolean;
+}) {
+  if (!explained) {
+    return (
+      <Text style={[styles.hint, compact && styles.hintCompact]} numberOfLines={compact ? 2 : 3}>
+        Capture: a tiger jumps over a goat into the empty point beyond – goats never capture; they win by trapping.
+      </Text>
+    );
+  }
+  const left = TIGERS_TO_WIN - explained.captured;
+  if (compact) {
+    return (
+      <View style={[styles.explainer, styles.explainerCompact]}>
+        <Sparkles color={colors.amber300} size={14} />
+        <Text style={styles.explainerTitleCompact}>Tiger jumps!</Text>
+        <Text style={styles.explainerStat}>
+          {explained.captured}/{TIGERS_TO_WIN}
+          {left > 0 ? ` · ${left} more` : ' · tigers win'}
+        </Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.explainer} accessibilityLiveRegion="polite">
+      <View style={styles.explainerHeader}>
+        <Sparkles color={colors.amber300} size={18} />
+        <Text style={styles.explainerTitle}>Tiger jumps!</Text>
+        <View style={styles.statPill}>
+          <Text style={styles.statPillText}>
+            {explained.captured} of {TIGERS_TO_WIN} goats taken
+          </Text>
+        </View>
+      </View>
+      {['A goat stood right next to the tiger, on a line', 'The point straight beyond that goat was empty'].map((w) => (
+        <View key={w} style={styles.whyRow}>
+          <Check color={colors.emerald} size={14} />
+          <Text style={styles.whyText}>{w}</Text>
+        </View>
+      ))}
+      <Text style={styles.result}>→ So the tiger leapt over it, and the goat is off the board.</Text>
+      <Text style={styles.note}>
+        {left > 0
+          ? `${left} more and the tigers win. Goats: keep the point behind every goat covered.`
+          : 'That was the fifth – the tigers win.'}
+      </Text>
     </View>
   );
 }
@@ -301,6 +385,75 @@ const styles = StyleSheet.create({
     fontFamily: 'CormorantGaramond_600SemiBold',
     textAlign: 'center',
   },
+  statusLine: {
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(245, 230, 200, 0.85)',
+    marginBottom: 6,
+    minHeight: 18,
+  },
+  statusCapture: {
+    alignSelf: 'center',
+    overflow: 'hidden',
+    borderRadius: 999,
+    backgroundColor: colors.amber300,
+    color: colors.wood950,
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    marginBottom: 8,
+  },
+  statusSpacer: { height: 6 },
+  hint: {
+    fontSize: 11,
+    color: colors.textFaint,
+    textAlign: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  hintCompact: { fontSize: 10, paddingVertical: 4, maxHeight: 36 },
+  explainer: {
+    marginTop: 4,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(252, 211, 77, 0.7)',
+    backgroundColor: 'rgba(42, 26, 22, 0.92)',
+    padding: 10,
+    gap: 4,
+  },
+  explainerCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxHeight: 40,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  explainerHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  explainerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.amber200,
+    fontFamily: 'CormorantGaramond_600SemiBold',
+  },
+  explainerTitleCompact: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.amber200,
+    fontFamily: 'CormorantGaramond_600SemiBold',
+  },
+  explainerStat: { fontSize: 11, fontWeight: '700', color: colors.amber100 },
+  statPill: {
+    borderRadius: 999,
+    backgroundColor: colors.amber300,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  statPillText: { fontSize: 10, fontWeight: '800', color: colors.wood950 },
+  whyRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  whyText: { flex: 1, fontSize: 12, color: colors.amber50 },
+  result: { fontSize: 12, fontWeight: '700', color: colors.amber200 },
+  note: { fontSize: 11, color: colors.textFaint },
   iconBtn: {
     width: 40,
     height: 40,

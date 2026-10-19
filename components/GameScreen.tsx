@@ -65,7 +65,9 @@ export function GameScreen({ options, onExit }: { options: GameOptions; onExit: 
     lastEvent?.type === 'reveal'
       ? lastEvent.rule === 'extra_turn'
         ? `Free turn! ${names[lastEvent.player]} ${names[lastEvent.player] === 'You' ? 'go' : 'goes'} again`
-        : `Capture! ${lastEvent.count} to ${names[game.activePlayer]}`
+        : lastEvent.rule === 'sweep'
+          ? `Sweep! ${lastEvent.pairs.length} pair${lastEvent.pairs.length === 1 ? '' : 's'} · ${lastEvent.count} to ${names[game.activePlayer]}`
+          : `Capture! ${lastEvent.count} to ${names[game.activePlayer]}`
       : lastEvent?.type === 'capture' && lastEvent.reason !== 'round_end'
         ? `${CAPTURE_TEXT[lastEvent.reason]} +${lastEvent.count} to ${names[lastEvent.player]}`
         : lastEvent?.type === 'halt' && lastEvent.reason === 'kada'

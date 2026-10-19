@@ -3,35 +3,56 @@ import { Check, Sparkles } from 'lucide-react-native';
 import type { Player, RevealEvent } from '@odiakhela/engine/types';
 import { colors } from '@/constants/theme';
 
+/** Plain-language "why" for each capture rule — matches web CaptureExplainer. */
 export function explainCapture(reveal: RevealEvent, mover: Player, names: [string, string]) {
   const name = names[mover];
+  const other = names[mover === 0 ? 1 : 0];
   const you = name === 'You';
   const subject = you ? 'you' : name;
-  const poss = you ? 'Your' : `${name}'s`;
+  const poss = you ? 'Your' : `${name}’s`;
   const takes = you ? 'take' : 'takes';
   const own = you ? 'your own' : 'their own';
+  const otherPoss = other === 'You' ? 'your' : `${other}’s`;
 
+  if (reveal.rule === 'sweep') {
+    const pairs = reveal.pairs.length;
+    return {
+      title: 'Sweep!',
+      stat: `${pairs} pair${pairs === 1 ? '' : 's'} · ${reveal.count} seeds`,
+      why: [
+        `${poss} last seed fell into an empty pit on ${own} side`,
+        'The pit directly opposite held exactly 2 seeds',
+      ],
+      result:
+        pairs === 1
+          ? `So ${subject} ${takes} that pair. There were no other pairs on ${otherPoss} side.`
+          : `So ${subject} ${takes} that pair – and every other pit on ${otherPoss} side holding exactly 2.`,
+    };
+  }
+  if (reveal.rule === 'opposite') {
+    return {
+      title: 'Capture!',
+      stat: `${reveal.count} seeds`,
+      why: [
+        `${poss} last seed fell into an empty pit on ${own} side`,
+        'The pit directly opposite had seeds in it',
+      ],
+      result: `So ${subject} ${takes} the opposite pit’s ${reveal.count - 1} plus that last seed – ${reveal.count} into the store.`,
+    };
+  }
   if (reveal.rule === 'extra_turn') {
     return {
       title: 'Free turn!',
       stat: you ? 'you go again' : `${name} goes again`,
-      why: [`${poss} last seed landed in ${you ? 'your' : 'their'} store`],
-      result: `So ${subject} ${you ? 'move' : 'moves'} again.`,
-    };
-  }
-  if (reveal.rule === 'sweep' || reveal.rule === 'opposite') {
-    return {
-      title: 'Capture!',
-      stat: `${reveal.count} seeds`,
-      why: [`Last seed fell into an empty pit on ${own} side`],
-      result: `So ${subject} ${takes} ${reveal.count} into the store.`,
+      why: [`${poss} last seed dropped into ${you ? 'your' : 'their'} own store`],
+      result: `So ${subject} ${you ? 'move' : 'moves'} again straight away.`,
     };
   }
   return {
     title: 'Capture!',
     stat: `${reveal.count} counter${reveal.count === 1 ? '' : 's'}`,
     why: [`${poss} hand ran out`, 'The next pit was empty'],
-    result: `So ${subject} ${takes} the pit beyond that empty one.`,
+    result: `So ${subject} ${takes} everything in the pit just beyond the empty one.`,
   };
 }
 

@@ -1,5 +1,17 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  cancelAnimation,
+  interpolate,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Defs, Ellipse, G, Line, Path, RadialGradient, Stop } from 'react-native-svg';
 import {
@@ -17,6 +29,12 @@ import type { HuntPiece } from '@/hooks/useHuntGame';
 const PAD = 9;
 const STEP = (100 - 2 * PAD) / 4;
 const pos = (p: number) => ({ x: PAD + pointCol(p) * STEP, y: PAD + pointRow(p) * STEP });
+
+const SPRING = { damping: 26, stiffness: 260, mass: 0.9 };
+const EXIT_MS = 500;
+const LINE_MS = 400;
+
+const AnimatedLine = Animated.createAnimatedComponent(Line);
 
 export interface HuntBoardProps {
   pieces: HuntPiece[];
@@ -44,71 +62,109 @@ export function HuntBoard({
   labels = {},
 }: HuntBoardProps) {
   const [size, setSize] = useState(0);
+  const [ghosts, setGhosts] = useState<HuntPiece[]>([]);
+  const prevPieces = useRef(pieces);
+
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
     setSize(Math.max(0, Math.floor(Math.min(width, height))));
   }, []);
 
+  useEffect(() => {
+    const prev = prevPieces.current;
+    const gone = prev.filter((p) => !pieces.some((n) => n.id === p.id));
+    if (gone.length) {
+      setGhosts((cur) => {
+        const ids = new Set(cur.map((g) => g.id));
+        return [...cur, ...gone.filter((g) => !ids.has(g.id))];
+      });
+    }
+    prevPieces.current = pieces;
+  }, [pieces]);
+
+  const dismissGhost = useCallback((id: number) => {
+    setGhosts((cur) => cur.filter((g) => g.id !== id));
+  }, []);
+
   const jumpFrom = capture?.from;
   const jumpTo = capture?.to;
   const hit = size > 0 ? size * 0.15 : 0;
-  const piece = size > 0 ? size * 0.12 : 0;
+  const pieceSize = size > 0 ? size * 0.12 : 0;
+
+  const jumpLine = useMemo(() => {
+    if (!capture || size <= 0) return null;
+    const a = pos(capture.from);
+    const b = pos(capture.to);
+    return {
+      x1: (a.x / 100) * size,
+      y1: (a.y / 100) * size,
+      x2: (b.x / 100) * size,
+      y2: (b.y / 100) * size,
+      len: Math.hypot(((b.x - a.x) / 100) * size, ((b.y - a.y) / 100) * size),
+    };
+  }, [capture, size]);
 
   return (
     <View style={styles.slot} onLayout={onLayout}>
       {size > 0 && (
         <View style={[styles.board, { width: size, height: size }]}>
-          <LinearGradient
-            colors={['#3a2420', '#2a1814', '#1a0f0d']}
-            start={{ x: 0.2, y: 0 }}
-            end={{ x: 0.8, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
+          <View style={styles.boardClip}>
+            <LinearGradient
+              colors={['#3a2420', '#2a1814', '#1a0f0d']}
+              start={{ x: 0.2, y: 0 }}
+              end={{ x: 0.8, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={StyleSheet.absoluteFill}>
+              {LINES.map(([a, b]) => {
+                const p = pos(a);
+                const q = pos(b);
+                const x1 = (p.x / 100) * size;
+                const y1 = (p.y / 100) * size;
+                const x2 = (q.x / 100) * size;
+                const y2 = (q.y / 100) * size;
+                const sw = size / 100;
+                return (
+                  <G key={`${a}-${b}`}>
+                    <Line
+                      x1={x1}
+                      y1={y1 + 0.35 * sw}
+                      x2={x2}
+                      y2={y2 + 0.35 * sw}
+                      stroke="rgba(255,220,170,0.12)"
+                      strokeWidth={1.1 * sw}
+                      strokeLinecap="round"
+                    />
+                    <Line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke="#1a0f0d"
+                      strokeWidth={1 * sw}
+                      strokeLinecap="round"
+                    />
+                  </G>
+                );
+              })}
+              {jumpLine ? <JumpArc line={jumpLine} /> : null}
+              {Array.from({ length: POINTS }, (_, p) => {
+                const pt = pos(p);
+                return (
+                  <Circle
+                    key={p}
+                    cx={(pt.x / 100) * size}
+                    cy={(pt.y / 100) * size}
+                    r={(size / 100) * 1.3}
+                    fill={colors.brass}
+                    opacity={0.8}
+                  />
+                );
+              })}
+            </Svg>
+          </View>
           <View style={[styles.hinge, styles.hingeLeft]} />
           <View style={[styles.hinge, styles.hingeRight]} />
-
-          <Svg width={size} height={size} viewBox="0 0 100 100" style={StyleSheet.absoluteFill}>
-            {LINES.map(([a, b]) => {
-              const p = pos(a);
-              const q = pos(b);
-              return (
-                <G key={`${a}-${b}`}>
-                  <Line
-                    x1={p.x}
-                    y1={p.y + 0.35}
-                    x2={q.x}
-                    y2={q.y + 0.35}
-                    stroke="rgba(255,220,170,0.12)"
-                    strokeWidth={1.1}
-                    strokeLinecap="round"
-                  />
-                  <Line
-                    x1={p.x}
-                    y1={p.y}
-                    x2={q.x}
-                    y2={q.y}
-                    stroke="#1a0f0d"
-                    strokeWidth={1}
-                    strokeLinecap="round"
-                  />
-                </G>
-              );
-            })}
-            {capture && (
-              <Line
-                x1={pos(capture.from).x}
-                y1={pos(capture.from).y}
-                x2={pos(capture.to).x}
-                y2={pos(capture.to).y}
-                stroke={colors.amber300}
-                strokeWidth={2.2}
-                strokeLinecap="round"
-              />
-            )}
-            {Array.from({ length: POINTS }, (_, p) => (
-              <Circle key={p} cx={pos(p).x} cy={pos(p).y} r={1.3} fill={colors.brass} opacity={0.8} />
-            ))}
-          </Svg>
 
           {Array.from({ length: POINTS }, (_, p) => {
             const move = targets.get(p);
@@ -148,23 +204,14 @@ export function HuntBoard({
                   {
                     width: hit,
                     height: hit,
-                    left: `${x}%`,
-                    top: `${y}%`,
-                    marginLeft: -hit / 2,
-                    marginTop: -hit / 2,
+                    left: (x / 100) * size - hit / 2,
+                    top: (y / 100) * size - hit / 2,
                   },
                 ]}
               >
                 {isLast ? <View style={styles.lastMark} /> : null}
-                {move ? (
-                  <View
-                    style={[
-                      styles.targetRing,
-                      move.kind === 'jump' ? styles.targetJump : styles.targetMove,
-                    ]}
-                  />
-                ) : null}
-                {capture?.over === p ? <View style={styles.takenRing} /> : null}
+                {move ? <PulseTarget jump={move.kind === 'jump'} /> : null}
+                {capture?.over === p ? <PulseTaken /> : null}
                 {label ? (
                   <View
                     style={[
@@ -183,50 +230,209 @@ export function HuntBoard({
             );
           })}
 
-          {pieces.map((pc) => {
-            const { x, y } = pos(pc.at);
-            const isTrapped = pc.side === 'tiger' && trapped.includes(pc.at);
-            const isSelected = selected === pc.at;
-            const atRisk = pc.side === 'goat' && danger.includes(pc.at);
-            return (
-              <View
-                key={pc.id}
-                pointerEvents="none"
-                style={[
-                  styles.piece,
-                  {
-                    width: piece,
-                    height: piece,
-                    left: `${x}%`,
-                    top: `${y}%`,
-                    marginLeft: -piece / 2,
-                    marginTop: -piece / 2,
-                    transform: [{ scale: isSelected ? 1.12 : 1 }],
-                  },
-                ]}
-              >
-                <Token side={pc.side} id={pc.id} />
-                {isSelected ? <View style={styles.selectedRing} /> : null}
-                {selectable.has(pc.at) && !isSelected ? <View style={styles.selectableRing} /> : null}
-                {isTrapped ? (
-                  <>
-                    <View style={styles.trappedRing} />
-                    <View style={styles.trappedBadge}>
-                      <Text style={styles.trappedText}>trapped</Text>
-                    </View>
-                  </>
-                ) : null}
-                {atRisk ? (
-                  <View style={styles.dangerBadge}>
-                    <Text style={styles.dangerText}>!</Text>
-                  </View>
-                ) : null}
-              </View>
-            );
-          })}
+          {pieces.map((pc) => (
+            <AnimatedPiece
+              key={pc.id}
+              piece={pc}
+              size={pieceSize}
+              boardSize={size}
+              selected={selected === pc.at}
+              canPick={selectable.has(pc.at)}
+              trapped={pc.side === 'tiger' && trapped.includes(pc.at)}
+              danger={pc.side === 'goat' && danger.includes(pc.at)}
+            />
+          ))}
+
+          {ghosts.map((pc) => (
+            <ExitingPiece
+              key={`ghost-${pc.id}`}
+              piece={pc}
+              size={pieceSize}
+              boardSize={size}
+              onDone={() => dismissGhost(pc.id)}
+            />
+          ))}
         </View>
       )}
     </View>
+  );
+}
+
+function JumpArc({ line }: { line: { x1: number; y1: number; x2: number; y2: number; len: number } }) {
+  const progress = useSharedValue(0);
+  useEffect(() => {
+    progress.value = 0;
+    progress.value = withTiming(1, { duration: LINE_MS, easing: Easing.out(Easing.cubic) });
+  }, [line.x1, line.y1, line.x2, line.y2, progress]);
+
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: line.len * (1 - progress.value),
+    opacity: interpolate(progress.value, [0, 0.15, 1], [0, 1, 1]),
+  }));
+
+  return (
+    <AnimatedLine
+      x1={line.x1}
+      y1={line.y1}
+      x2={line.x2}
+      y2={line.y2}
+      stroke={colors.amber300}
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeDasharray={[line.len, line.len]}
+      animatedProps={animatedProps}
+    />
+  );
+}
+
+function PulseTarget({ jump }: { jump: boolean }) {
+  const pulse = useSharedValue(1);
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1.12, { duration: 550, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 550, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+      false,
+    );
+    return () => cancelAnimation(pulse);
+  }, [pulse]);
+
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
+  return (
+    <Animated.View
+      style={[styles.targetRing, jump ? styles.targetJump : styles.targetMove, style]}
+      pointerEvents="none"
+    />
+  );
+}
+
+function PulseTaken() {
+  const pulse = useSharedValue(0);
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+      false,
+    );
+    return () => cancelAnimation(pulse);
+  }, [pulse]);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: interpolate(pulse.value, [0, 1], [0.6, 1]),
+    transform: [{ scale: interpolate(pulse.value, [0, 1], [1, 1.12]) }],
+  }));
+
+  return <Animated.View style={[styles.takenRing, style]} pointerEvents="none" />;
+}
+
+function AnimatedPiece({
+  piece,
+  size,
+  boardSize,
+  selected,
+  canPick,
+  trapped,
+  danger,
+}: {
+  piece: HuntPiece;
+  size: number;
+  boardSize: number;
+  selected: boolean;
+  canPick: boolean;
+  trapped: boolean;
+  danger: boolean;
+}) {
+  const { x, y } = pos(piece.at);
+  const px = (x / 100) * boardSize - size / 2;
+  const py = (y / 100) * boardSize - size / 2;
+  const left = useSharedValue(px);
+  const top = useSharedValue(py);
+  const scale = useSharedValue(selected ? 1.12 : 1);
+  const appear = useSharedValue(1);
+  const booted = useRef(false);
+
+  useEffect(() => {
+    if (!booted.current) {
+      booted.current = true;
+      left.value = px;
+      top.value = py;
+      appear.value = 0;
+      appear.value = withSpring(1, SPRING);
+      return;
+    }
+    left.value = withSpring(px, SPRING);
+    top.value = withSpring(py, SPRING);
+  }, [px, py, left, top, appear]);
+
+  useEffect(() => {
+    scale.value = withSpring(selected ? 1.12 : 1, SPRING);
+  }, [selected, scale]);
+
+  const style = useAnimatedStyle(() => ({
+    left: left.value,
+    top: top.value,
+    opacity: appear.value,
+    transform: [{ scale: scale.value * appear.value }],
+  }));
+
+  return (
+    <Animated.View pointerEvents="none" style={[styles.piece, { width: size, height: size }, style]}>
+      <Token side={piece.side} id={piece.id} />
+      {selected ? <View style={styles.selectedRing} /> : null}
+      {canPick && !selected ? <View style={styles.selectableRing} /> : null}
+      {trapped ? (
+        <>
+          <View style={styles.trappedRing} />
+          <View style={styles.trappedBadge}>
+            <Text style={styles.trappedText}>trapped</Text>
+          </View>
+        </>
+      ) : null}
+      {danger ? (
+        <View style={styles.dangerBadge}>
+          <Text style={styles.dangerText}>!</Text>
+        </View>
+      ) : null}
+    </Animated.View>
+  );
+}
+
+function ExitingPiece({
+  piece,
+  size,
+  boardSize,
+  onDone,
+}: {
+  piece: HuntPiece;
+  size: number;
+  boardSize: number;
+  onDone: () => void;
+}) {
+  const { x, y } = pos(piece.at);
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withTiming(1, { duration: EXIT_MS, easing: Easing.in(Easing.cubic) });
+    const t = setTimeout(onDone, EXIT_MS);
+    return () => clearTimeout(t);
+  }, [progress, onDone]);
+
+  const style = useAnimatedStyle(() => ({
+    left: (x / 100) * boardSize - size / 2,
+    top: (y / 100) * boardSize - size / 2 + interpolate(progress.value, [0, 1], [0, -24]),
+    opacity: interpolate(progress.value, [0, 1], [1, 0]),
+    transform: [{ scale: interpolate(progress.value, [0, 1], [1, 0.2]) }],
+  }));
+
+  return (
+    <Animated.View pointerEvents="none" style={[styles.piece, { width: size, height: size }, style]}>
+      <Token side={piece.side} id={piece.id + 1000} />
+    </Animated.View>
   );
 }
 
@@ -293,8 +499,13 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     borderWidth: 2,
     borderColor: colors.brassDim,
-    overflow: 'hidden',
+    overflow: 'visible',
     position: 'relative',
+  },
+  boardClip: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 26,
+    overflow: 'hidden',
   },
   hinge: {
     position: 'absolute',
@@ -314,20 +525,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   lastMark: {
-    position: 'absolute',
-    left: '18%',
-    right: '18%',
-    top: '18%',
-    bottom: '18%',
+    ...StyleSheet.absoluteFill,
+    margin: '18%',
     borderRadius: 999,
     backgroundColor: 'rgba(245, 230, 200, 0.1)',
   },
   targetRing: {
-    position: 'absolute',
-    left: '16%',
-    right: '16%',
-    top: '16%',
-    bottom: '16%',
+    ...StyleSheet.absoluteFill,
+    margin: '16%',
     borderRadius: 999,
     borderWidth: 2,
     borderStyle: 'dashed',
@@ -341,11 +546,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(232, 194, 122, 0.1)',
   },
   takenRing: {
-    position: 'absolute',
-    left: '10%',
-    right: '10%',
-    top: '10%',
-    bottom: '10%',
+    ...StyleSheet.absoluteFill,
+    margin: '10%',
     borderRadius: 999,
     borderWidth: 3,
     borderColor: colors.rose,
@@ -368,10 +570,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     color: colors.wood950,
   },
-  piece: {
-    position: 'absolute',
-    zIndex: 20,
-  },
+  piece: { position: 'absolute', zIndex: 20 },
   selectedRing: {
     ...StyleSheet.absoluteFill,
     margin: -4,
