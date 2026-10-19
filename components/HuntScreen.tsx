@@ -1,12 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, RotateCcw, Settings2, Undo2, Volume2, VolumeX, X } from 'lucide-react-native';
 import { GOATS, type HuntMove, type HuntState, MAX_PLIES, type Side, TIGERS_TO_WIN } from '@odiakhela/engine/hunt';
@@ -57,20 +50,6 @@ export function HuntScreen({ options, onExit }: HuntScreenProps) {
     if (settingsRef.current.haptics) void vibrate([40, 60, 80]);
   }, [state.winner, vsAI, options.humanSide]);
 
-  const status = g.capture
-    ? `Tiger jumps! Goat ${state.captured + 1} of ${TIGERS_TO_WIN} taken`
-    : g.aiThinking
-      ? 'Machine is thinking…'
-      : state.winner
-        ? ''
-        : g.isHumanTurn
-          ? state.turn === 'goat'
-            ? state.goatsInHand > 0
-              ? `${vsAI ? 'Your move' : 'Goats'} – place a goat (${state.goatsInHand} left)`
-              : `${vsAI ? 'Your move' : 'Goats'} – tap a goat, then a glowing point`
-            : `${vsAI ? 'Your move' : 'Tigers'} – tap a tiger, then move or jump`
-          : `${name(state.turn)} to move`;
-
   const board = (
     <HuntBoard
       pieces={g.pieces}
@@ -105,12 +84,6 @@ export function HuntScreen({ options, onExit }: HuntScreenProps) {
         </Pressable>
         <View style={styles.headerCenter} pointerEvents="none">
           <Text style={styles.title}>Bagha Chheli</Text>
-          <Text style={styles.subtitle} numberOfLines={1}>
-            Odisha · Tigers & goats
-            {vsAI ? ` · you play ${options.humanSide === 'goat' ? 'goats' : 'tigers'}` : ''}
-            {status ? ` · ${status}` : ''}
-          </Text>
-          <Text style={styles.drawHint}>Drawn after {MAX_PLIES} moves</Text>
         </View>
         <View style={styles.headerRight}>
           <Pressable
@@ -134,13 +107,6 @@ export function HuntScreen({ options, onExit }: HuntScreenProps) {
             )}
           </Pressable>
         </View>
-      </View>
-
-      <View style={styles.statusRow}>
-        {g.aiThinking ? <ActivityIndicator color={colors.amber200} size="small" /> : null}
-        <Text style={[styles.statusText, g.capture && styles.statusCapture]} numberOfLines={2}>
-          {status}
-        </Text>
       </View>
 
       {landscape ? (
@@ -196,6 +162,15 @@ export function HuntScreen({ options, onExit }: HuntScreenProps) {
           <Text style={styles.ghostText}>
             {g.selected !== null ? 'Cancel' : `Undo · ${g.undosLeft}/${g.undoLimit}`}
           </Text>
+        </Pressable>
+        <Pressable
+          onPress={g.newGame}
+          disabled={g.aiThinking || g.busy}
+          style={[styles.ghostBtn, (g.aiThinking || g.busy) && styles.ghostDisabled]}
+          accessibilityLabel="Restart match"
+        >
+          <RotateCcw color={colors.amber100} size={16} />
+          <Text style={styles.ghostText}>Restart</Text>
         </Pressable>
       </View>
 
@@ -257,12 +232,18 @@ export function HuntScreen({ options, onExit }: HuntScreenProps) {
                   ? 'Every tiger is trapped – none can move or jump.'
                   : `${MAX_PLIES} moves passed without a result.`}
             </Text>
-            <Pressable style={styles.brassBtn} onPress={g.newGame}>
+            <Pressable style={styles.brassBtn} onPress={g.newGame} accessibilityRole="button">
               <RotateCcw color={colors.wood950} size={18} />
               <Text style={styles.brassBtnText}>Play again</Text>
             </Pressable>
-            <Pressable onPress={onExit}>
-              <Text style={styles.link}>Choose another game</Text>
+            <Pressable
+              style={styles.secondaryBtn}
+              onPress={onExit}
+              accessibilityRole="button"
+              accessibilityLabel="Back to all games"
+            >
+              <ChevronLeft color={colors.amber100} size={18} />
+              <Text style={styles.secondaryBtnText}>All games</Text>
             </Pressable>
           </View>
         </View>
@@ -334,6 +315,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     minHeight: 40,
+    marginBottom: 14,
     zIndex: 2,
   },
   headerCenter: {
@@ -351,21 +333,6 @@ const styles = StyleSheet.create({
     fontFamily: 'CormorantGaramond_600SemiBold',
     textAlign: 'center',
   },
-  subtitle: {
-    fontSize: 10,
-    color: colors.textMuted,
-    marginTop: 1,
-    textAlign: 'center',
-  },
-  drawHint: {
-    marginTop: 2,
-    fontSize: 9,
-    fontWeight: '600',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: colors.textFaint,
-    textAlign: 'center',
-  },
   iconBtn: {
     width: 40,
     height: 40,
@@ -374,30 +341,6 @@ const styles = StyleSheet.create({
     borderColor: colors.brassDim,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  statusRow: {
-    minHeight: 28,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 8,
-    marginBottom: 4,
-  },
-  statusText: {
-    fontSize: 13,
-    color: 'rgba(245, 230, 200, 0.8)',
-    textAlign: 'center',
-    flexShrink: 1,
-  },
-  statusCapture: {
-    backgroundColor: colors.amber300,
-    color: colors.wood950,
-    fontWeight: '700',
-    overflow: 'hidden',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 2,
   },
   landscapeBody: {
     flex: 1,
@@ -409,7 +352,8 @@ const styles = StyleSheet.create({
   portraitStats: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 6,
+    marginTop: 2,
+    marginBottom: 8,
   },
   boardSlot: {
     flex: 1,
@@ -559,5 +503,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   brassBtnText: { color: colors.wood950, fontSize: 16, fontWeight: '800' },
-  link: { color: colors.textMuted, fontSize: 13, textDecorationLine: 'underline' },
+  secondaryBtn: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.brassDim,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(26, 15, 13, 0.55)',
+  },
+  secondaryBtnText: { color: colors.amber100, fontSize: 15, fontWeight: '700' },
 });

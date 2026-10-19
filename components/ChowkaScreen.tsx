@@ -197,8 +197,9 @@ export function ChowkaScreen({ options, onExit }: { options: ChowkaOptions; onEx
               <RotateCcw color={colors.wood950} size={18} />
               <Text style={styles.brassBtnText}>Play again</Text>
             </Pressable>
-            <Pressable onPress={onExit}>
-              <Text style={styles.link}>Choose another game</Text>
+            <Pressable style={styles.secondaryBtn} onPress={onExit} accessibilityLabel="Back to all games">
+              <ChevronLeft color={colors.amber100} size={18} />
+              <Text style={styles.secondaryBtnText}>All games</Text>
             </Pressable>
           </View>
         </View>
@@ -321,5 +322,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalTitle: { fontSize: 22, fontWeight: '700', color: colors.amber50, textAlign: 'center' },
-  link: { color: colors.textMuted, fontSize: 13, textDecorationLine: 'underline' },
+  secondaryBtn: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.brassDim,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(26, 15, 13, 0.55)',
+  },
+  secondaryBtnText: { color: colors.amber100, fontSize: 15, fontWeight: '700' },
 });

@@ -201,8 +201,9 @@ export function DashScreen({ options, onExit }: { options: DashOptions; onExit: 
               <RotateCcw color={colors.wood950} size={18} />
               <Text style={styles.brassBtnText}>Play again</Text>
             </Pressable>
-            <Pressable onPress={onExit}>
-              <Text style={styles.link}>Choose another game</Text>
+            <Pressable style={styles.secondaryBtn} onPress={onExit} accessibilityLabel="Back to all games">
+              <ChevronLeft color={colors.amber100} size={18} />
+              <Text style={styles.secondaryBtnText}>All games</Text>
             </Pressable>
           </View>
         </View>
@@ -419,5 +420,18 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   brassBtnText: { color: colors.wood950, fontSize: 16, fontWeight: '800' },
+  secondaryBtn: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.brassDim,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(26, 15, 13, 0.55)',
+  },
+  secondaryBtnText: { color: colors.amber100, fontSize: 15, fontWeight: '700' },
   link: { color: colors.textMuted, fontSize: 13, textDecorationLine: 'underline' },
 });
