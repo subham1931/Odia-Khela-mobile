@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { Text, View } from 'react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { seatsFor } from '@odiakhela/engine/chowka';
 import type { GameOptions, GameVariant } from '@odiakhela/engine/types';
 import { VARIANTS } from '@odiakhela/engine/variants';
@@ -8,6 +8,7 @@ import { ChowkaScreen } from '@/components/ChowkaScreen';
 import { DashScreen } from '@/components/DashScreen';
 import { GameScreen } from '@/components/GameScreen';
 import { HuntScreen } from '@/components/HuntScreen';
+import { useAuth } from '@/context/AuthContext';
 import { colors } from '@/constants/theme';
 import type { ChowkaOptions } from '@/hooks/useChowkaGame';
 import type { DashOptions } from '@/hooks/useDashGame';
@@ -25,6 +26,7 @@ function parseGame(raw: string | string[] | undefined): MobileGameId {
 
 export default function PlayScreen() {
   const router = useRouter();
+  const { status } = useAuth();
   const params = useLocalSearchParams<{ game?: string }>();
   const gameId = parseGame(params.game);
   const s = useSettings();
@@ -107,6 +109,13 @@ export default function PlayScreen() {
       else router.replace('/');
     })();
   };
+
+  if (status === 'unauthenticated') {
+    return <Redirect href="/login" />;
+  }
+  if (status === 'loading') {
+    return null;
+  }
 
   if (mancalaOptions) {
     return <GameScreen key={JSON.stringify(mancalaOptions)} options={mancalaOptions} onExit={exit} />;

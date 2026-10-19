@@ -16,6 +16,7 @@ import {
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { JuteBackground } from '@/components/JuteBackground';
+import { AuthProvider } from '@/context/AuthContext';
 import { colors } from '@/constants/theme';
 
 export { ErrorBoundary } from 'expo-router';
@@ -41,22 +42,24 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <StatusBar style="light" />
-      <View style={{ flex: 1 }}>
-        <JuteBackground />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: 'transparent' },
-            animation: 'fade',
-          }}
-        >
-          {/* orientation driven by ScreenOrientation in screens — Stack option alone fails on iOS 16+ back nav */}
-          <Stack.Screen name="index" />
-          <Stack.Screen name="play" options={{ animation: 'fade' }} />
-
-        </Stack>
-      </View>
+      <AuthProvider>
+        <StatusBar style="light" />
+        <View style={{ flex: 1 }}>
+          <JuteBackground />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: 'transparent' },
+              animation: 'fade',
+            }}
+          >
+            {/* orientation driven by ScreenOrientation in screens — Stack option alone fails on iOS 16+ back nav */}
+            <Stack.Screen name="index" />
+            <Stack.Screen name="login" />
+            <Stack.Screen name="play" options={{ animation: 'fade' }} />
+          </Stack>
+        </View>
+      </AuthProvider>
     </GestureHandlerRootView>
   );
 }

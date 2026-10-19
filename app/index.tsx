@@ -1,12 +1,14 @@
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Lock } from 'lucide-react-native';
 import { HeroHeader } from '@/components/HeroHeader';
 import { JuteBackground } from '@/components/JuteBackground';
+import { ProfileAvatarButton } from '@/components/ProfileAvatarButton';
 import { SetupModal } from '@/components/SetupModal';
+import { useAuth } from '@/context/AuthContext';
 import { colors } from '@/constants/theme';
 import { GAME_LIST, type MobileGameId } from '@/lib/games';
 import { portraitUp } from '@/lib/orientation';
@@ -16,6 +18,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const settings = useSettings();
+  const { status } = useAuth();
   const [setupGame, setSetupGame] = useState<MobileGameId | null>(null);
 
   useFocusEffect(
@@ -32,6 +35,19 @@ export default function HomeScreen() {
       };
     }, []),
   );
+
+  if (status === 'loading') {
+    return (
+      <View style={[styles.root, styles.loading]}>
+        <JuteBackground />
+        <ActivityIndicator color={colors.brass} size="large" />
+      </View>
+    );
+  }
+
+  if (status === 'unauthenticated') {
+    return <Redirect href="/login" />;
+  }
 
   const odia = GAME_LIST.filter((g) => g.section === 'odia');
   const videshi = GAME_LIST.filter((g) => g.section === 'videshi');
@@ -52,6 +68,7 @@ export default function HomeScreen() {
   return (
     <View style={[styles.root, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
       <JuteBackground />
+      <ProfileAvatarButton />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <HeroHeader />
 
@@ -130,6 +147,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
+  loading: { alignItems: 'center', justifyContent: 'center' },
   scroll: { paddingHorizontal: 20, paddingBottom: 40 },
   sectionTitle: {
     fontSize: 26,
