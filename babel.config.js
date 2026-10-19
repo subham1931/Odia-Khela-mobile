@@ -9,7 +9,7 @@ module.exports = function (api) {
           root: ['.'],
           alias: {
             '@': './',
-            '@odiakhela/engine': '../odiakhela-web/engine',
+            '@odiakhela/engine': './engine',
           },
           extensions: ['.tsx', '.ts', '.js', '.json'],
         },

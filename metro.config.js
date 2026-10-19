@@ -2,12 +2,11 @@ const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 
 const projectRoot = __dirname;
-const webRoot = path.resolve(projectRoot, '../odiakhela-web');
-const engineRoot = path.resolve(webRoot, 'engine');
+const engineRoot = path.resolve(projectRoot, 'engine');
 
 const config = getDefaultConfig(projectRoot);
 
-// Share the pure TypeScript rules engine with the web app (no React/DOM).
+// Pure TypeScript rules engine (vendored for EAS builds).
 config.watchFolders = [engineRoot];
 config.resolver.nodeModulesPaths = [path.resolve(projectRoot, 'node_modules')];
 config.resolver.extraNodeModules = {
